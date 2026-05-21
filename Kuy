@@ -1,0 +1,472 @@
+-- NONNOI CLIENT - PREDICTIVE RAYCAST DAMAGE EVADE & MOVEMENT MOBILE UI
+repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
+task.wait(1)
+
+local ScreenGui, players, UIS = Instance.new("ScreenGui"), game:GetService("Players"), game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local localPlayer = players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local oldUI = game:GetService("CoreGui"):FindFirstChild("NONNOIClientUI") or localPlayer.PlayerGui:FindFirstChild("NONNOIClientUI")
+if oldUI then oldUI:Destroy() end
+
+ScreenGui.Name = "NONNOIClientUI"
+ScreenGui.ResetOnSpawn = false
+
+local parentSet = false
+pcall(function() ScreenGui.Parent = game:GetService("CoreGui"); if ScreenGui.Parent then parentSet = true end end)
+if not parentSet then pcall(function() ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui"); if ScreenGui.Parent then parentSet = true end end) end
+if not parentSet then ScreenGui.Parent = localPlayer.PlayerGui end
+
+if not ScreenGui.Parent then error("Cannot create GUI") end
+
+-- ==================== UI CREATION ====================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -130, 0.5, -225)
+MainFrame.Size = UDim2.new(0, 260, 0, 450)
+MainFrame.Active = true
+MainFrame.ClipsDescendants = true
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Parent = MainFrame
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+local TitleFill = Instance.new("Frame")
+TitleFill.Parent = TitleBar
+TitleFill.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleFill.BorderSizePixel = 0
+TitleFill.Position = UDim2.new(0, 0, 0.5, 0)
+TitleFill.Size = UDim2.new(1, 0, 0.5, 0)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Parent = TitleBar
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Size = UDim2.new(1, 0, 1, 0)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.Text = "NONNOI CLIENT"
+TitleLabel.TextColor3 = Color3.fromRGB(219, 0, 190)
+TitleLabel.TextSize = 18
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Parent = MainFrame
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.BorderSizePixel = 0
+ContentFrame.Position = UDim2.new(0, 0, 0, 40)
+ContentFrame.Size = UDim2.new(1, 0, 1, -40)
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 550)
+ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(219, 0, 190)
+ContentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ContentFrame
+UIListLayout.Padding = UDim.new(0, 6)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.Parent = ContentFrame
+UIPadding.PaddingLeft = UDim.new(0, 8)
+UIPadding.PaddingRight = UDim.new(0, 8)
+UIPadding.PaddingTop = UDim.new(0, 8)
+-- ==================== END UI CREATION ====================
+
+local CharacterConfig = {
+    WalkSpeed = 16, JumpPower = 50, AirWalk = false, Noclip = false,
+    EspLines = false, EspBoxes = false, EspHealth = false, DamageEvade = false,
+    SpinSpeed = 0, FlyEnabled = false, FlySpeed = 60
+}
+local lastSafeCFrame, tpCooldown, dragging, hasMoved, isMinimized, dragStart, startPos = nil, false, false, false, false, nil, nil
+
+-- Fly objects
+local bv, bg = nil, nil
+
+local function CleanupFly()
+    if bv then bv:Destroy(); bv = nil end
+    if bg then bg:Destroy(); bg = nil end
+end
+
+local function StartFly(char, speed)
+    CleanupFly()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local hum = char:WaitForChild("Humanoid")
+    
+    hum.PlatformStand = true
+    
+    bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = hrp
+    
+    bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.P = 9e4
+    bg.CFrame = hrp.CFrame
+    bg.Parent = hrp
+    
+    local conn
+    conn = RS.RenderStepped:Connect(function()
+        if not CharacterConfig.FlyEnabled or not bv or not bg or not hrp.Parent then
+            conn:Disconnect()
+            CleanupFly()
+            if hum and hum.Parent then hum.PlatformStand = false end
+            return
+        end
+        
+        bg.CFrame = camera.CFrame
+        
+        local move = hum.MoveDirection
+        local vel = Vector3.zero
+        
+        if move.Magnitude > 0 then
+            vel = camera.CFrame.LookVector * speed
+        end
+        
+        bv.Velocity = vel
+    end)
+end
+
+local function StopFly(char)
+    CharacterConfig.FlyEnabled = false
+    CleanupFly()
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
+end
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging, hasMoved, dragStart, startPos = true, false, input.Position, MainFrame.Position
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > 5 then hasMoved = true end
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+        if not hasMoved then
+            isMinimized = not isMinimized
+            MainFrame.Size = isMinimized and UDim2.new(0, 260, 0, 40) or UDim2.new(0, 260, 0, 450)
+            ContentFrame.Visible = not isMinimized
+        end
+    end
+end)
+
+local function CreateSlider(name, labelText, defaultVal, minVal, maxVal, callback)
+    local Container = Instance.new("Frame")
+    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 42); Container.Parent = ContentFrame
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Size = UDim2.new(1, 0, 0, 20); Label.Font = Enum.Font.SourceSans
+    Label.Text = labelText .. ": " .. defaultVal; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local SliderBG = Instance.new("Frame")
+    SliderBG.Parent = Container; SliderBG.BackgroundColor3 = Color3.fromRGB(45, 45, 45); SliderBG.BorderSizePixel = 0; SliderBG.Position = UDim2.new(0, 0, 0, 24); SliderBG.Size = UDim2.new(1, 0, 0, 8)
+
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Parent = SliderBG; SliderFill.BackgroundColor3 = Color3.fromRGB(219, 0, 190); SliderFill.BorderSizePixel = 0
+    SliderFill.Size = UDim2.new(math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1), 0, 1, 0)
+
+    local SliderBtn = Instance.new("TextButton")
+    SliderBtn.Parent = SliderBG; SliderBtn.BackgroundTransparency = 1; SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.Text = ""
+
+    local isSliding = false
+    local function UpdateSlider(input)
+        local pct = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
+        SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+        local val = math.round(minVal + (pct * (maxVal - minVal)))
+        Label.Text = labelText .. ": " .. val
+        callback(val)
+    end
+    SliderBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = true; UpdateSlider(input) end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then UpdateSlider(input) end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = false end
+    end)
+end
+
+local function CreateCheckbox(name, labelText, callback)
+    local Container = Instance.new("Frame")
+    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 30); Container.Parent = ContentFrame
+
+    local Border = Instance.new("TextButton")
+    Border.Parent = Container; Border.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Border.BorderColor3 = Color3.fromRGB(219, 0, 190)
+    Border.BorderSizePixel = 1; Border.Position = UDim2.new(0, 2, 0.15, 0); Border.Size = UDim2.new(0, 18, 0, 18); Border.Text = ""; Border.AutoButtonColor = false
+
+    local Inner = Instance.new("Frame")
+    Inner.Parent = Border; Inner.BackgroundColor3 = Color3.fromRGB(219, 0, 190); Inner.BorderSizePixel = 0; Inner.Position = UDim2.new(0.2, 0, 0.2, 0); Inner.Size = UDim2.new(0.6, 0, 0.6, 0); Inner.Visible = false
+
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Position = UDim2.new(0, 32, 0, 0); Label.Size = UDim2.new(1, -32, 1, 0)
+    Label.Font = Enum.Font.SourceSans; Label.Text = labelText; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local state = false
+    Border.MouseButton1Click:Connect(function()
+        state = not state; Inner.Visible = state; callback(state)
+    end)
+end
+
+local function CreateHeader(title)
+    local Container = Instance.new("Frame")
+    Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 25); Container.Parent = ContentFrame
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Parent = Container; TitleLabel.BackgroundTransparency = 1; TitleLabel.Size = UDim2.new(1, 0, 1, 0)
+    TitleLabel.Font = Enum.Font.SourceSansBold; TitleLabel.Text = title; TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 14; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+CreateHeader("MOVEMENT")
+CreateSlider("SpeedHack", "Speed Hack", 16, 16, 1000, function(v) CharacterConfig.WalkSpeed = v end)
+CreateSlider("JumpHack", "Jump Power", 50, 50, 300, function(v) CharacterConfig.JumpPower = v end)
+CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 720, function(v) CharacterConfig.SpinSpeed = v end)
+
+local Spacer1 = Instance.new("Frame"); Spacer1.BackgroundTransparency = 1; Spacer1.Size = UDim2.new(1, 0, 0, 4); Spacer1.Parent = ContentFrame
+
+CreateHeader("FLY")
+CreateCheckbox("FlyEnabled", "Fly (กด W พุ่งตามกล้อง)", function(state)
+    CharacterConfig.FlyEnabled = state
+    local char = localPlayer.Character
+    if state and char then
+        StartFly(char, CharacterConfig.FlySpeed)
+    elseif not state then
+        StopFly(char)
+    end
+end)
+CreateSlider("FlySpeed", "Fly Speed", 60, 10, 500, function(v)
+    CharacterConfig.FlySpeed = v
+end)
+
+local Spacer2 = Instance.new("Frame"); Spacer2.BackgroundTransparency = 1; Spacer2.Size = UDim2.new(1, 0, 0, 4); Spacer2.Parent = ContentFrame
+
+CreateHeader("EVADE AND SAFETY")
+local toggles1 = {{"AirWalk", "Air Walk"}, {"Noclip", "Noclip"}, {"DamageEvade", "Damage Evade"}}
+for _, t in ipairs(toggles1) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
+
+local Spacer3 = Instance.new("Frame"); Spacer3.BackgroundTransparency = 1; Spacer3.Size = UDim2.new(1, 0, 0, 4); Spacer3.Parent = ContentFrame
+
+CreateHeader("ESP VISUALS")
+local toggles2 = {{"EspLines", "ESP Lines"}, {"EspBoxes", "ESP Boxes"}, {"EspHealth", "ESP Health"}}
+for _, t in ipairs(toggles2) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
+
+local AirPart = Instance.new("Part")
+AirPart.Name = "NONNOIAirPlate"; AirPart.Size = Vector3.new(6, 0.5, 6); AirPart.Anchored = true; AirPart.Transparency = 1; AirPart.RootPriority = 1
+
+local function IsTouchDamagePart(part)
+    if part:IsA("TouchTransmitter") then return true end
+    local name, pName = string.lower(part.Name), (part.Parent and string.lower(part.Parent.Name) or "")
+    for _, word in ipairs({"kill", "lava", "hurt", "danger", "damage", "acid"}) do
+        if string.find(name, word) or string.find(pName, word) then return true end
+    end
+    return false
+end
+
+local function SafeTeleport(root)
+    if lastSafeCFrame and not tpCooldown then
+        tpCooldown = true
+        root.CFrame = lastSafeCFrame
+        root.AssemblyLinearVelocity = Vector3.zero
+        task.delay(0.25, function() tpCooldown = false end)
+        return true
+    end
+end
+
+local function PredictAndEvade(root, hum)
+    if not CharacterConfig.DamageEvade or tpCooldown then return end
+    local moveDir, vel = hum.MoveDirection, root.AssemblyLinearVelocity
+    local castDir = (moveDir.Magnitude > 0 and moveDir or (vel.Magnitude > 1 and vel.Unit or nil))
+    
+    if castDir then
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = {localPlayer.Character, AirPart}
+        for _, offset in ipairs({Vector3.zero, Vector3.new(1.5, -2, 0), Vector3.new(-1.5, -2, 0), Vector3.new(0, -2, 1.5), Vector3.new(0, -2, -1.5)}) do
+            local res = workspace:Raycast(root.Position + offset, castDir * 8, params)
+            if res and res.Instance and IsTouchDamagePart(res.Instance) then
+                SafeTeleport(root)
+                return
+            end
+        end
+    end
+    
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {localPlayer.Character, AirPart}
+    
+    for angle = 0, 360, 45 do
+        local rad = math.rad(angle)
+        local dir = Vector3.new(math.cos(rad), 0, math.sin(rad))
+        local res = workspace:Raycast(root.Position, dir * 5, params)
+        if res and res.Instance and IsTouchDamagePart(res.Instance) then
+            SafeTeleport(root)
+            return
+        end
+    end
+    
+    local downRes = workspace:Raycast(root.Position, Vector3.new(0, -5, 0), params)
+    if downRes and downRes.Instance and IsTouchDamagePart(downRes.Instance) then
+        SafeTeleport(root)
+        return
+    end
+    
+    local parts = workspace:GetPartsInPart(AirPart)
+    for _, part in ipairs(parts) do
+        if IsTouchDamagePart(part) then SafeTeleport(root) return end
+    end
+    
+    if hum.FloorMaterial ~= Enum.Material.Air and vel.Magnitude < CharacterConfig.WalkSpeed + 5 then
+        lastSafeCFrame = root.CFrame
+    end
+end
+
+local function CreateEspCache(p)
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = "NONNOIBox"; box.AlwaysOnTop = true; box.ZIndex = 5; box.Color3 = Color3.fromRGB(219, 0, 190); box.Transparency = 0.5; box.Parent = ScreenGui
+    local function NewLine(col, thk)
+        local l = Drawing.new("Line"); l.Color = col; l.Thickness = thk; l.Visible = false; return l
+    end
+    return {Box = box, Line = NewLine(Color3.fromRGB(219, 0, 190), 2.5), HealthBG = NewLine(Color3.fromRGB(30, 30, 30), 8), Health = NewLine(Color3.fromRGB(0, 255, 0), 8)}
+end
+
+local espCache = {}
+local function CleanESP(p) if espCache[p] then espCache[p].Box:Destroy(); espCache[p].Line:Remove(); espCache[p].HealthBG:Remove(); espCache[p].Health:Remove(); espCache[p] = nil end end
+for _, p in ipairs(players:GetPlayers()) do if p ~= localPlayer then espCache[p] = CreateEspCache(p) end end
+players.PlayerAdded:Connect(function(p) if p ~= localPlayer then espCache[p] = CreateEspCache(p) end end)
+players.PlayerRemoving:Connect(CleanESP)
+
+local function ApplyCharacterBypasses(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    local root = char:WaitForChild("HumanoidRootPart", 5)
+    if not hum or not root then return end
+
+    hum.HealthChanged:Connect(function()
+        if CharacterConfig.DamageEvade and lastSafeCFrame and not tpCooldown then
+            SafeTeleport(root)
+        end
+    end)
+
+    hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if hum.WalkSpeed ~= CharacterConfig.WalkSpeed then hum.WalkSpeed = CharacterConfig.WalkSpeed end
+    end)
+    hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        if hum.JumpPower ~= CharacterConfig.JumpPower then hum.JumpPower = CharacterConfig.JumpPower end
+    end)
+    
+    hum.UseJumpPower = true
+    hum.WalkSpeed = CharacterConfig.WalkSpeed
+    hum.JumpPower = CharacterConfig.JumpPower
+    
+    if CharacterConfig.FlyEnabled then
+        task.wait(0.5)
+        StartFly(char, CharacterConfig.FlySpeed)
+    end
+end
+
+localPlayer.CharacterAdded:Connect(function(char)
+    StopFly(localPlayer.Character)
+    ApplyCharacterBypasses(char)
+end)
+if localPlayer.Character then
+    ApplyCharacterBypasses(localPlayer.Character)
+end
+
+task.spawn(function()
+    while task.wait(0.01) do
+        pcall(function()
+            local char = localPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            
+            if root and hum then
+                if hum.WalkSpeed ~= CharacterConfig.WalkSpeed then hum.WalkSpeed = CharacterConfig.WalkSpeed end
+                if hum.JumpPower ~= CharacterConfig.JumpPower then hum.JumpPower = CharacterConfig.JumpPower end
+                
+                PredictAndEvade(root, hum)
+                
+                if CharacterConfig.SpinSpeed > 0 and root then
+                    root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(CharacterConfig.SpinSpeed * 0.01), 0)
+                end
+                
+                AirPart.Parent = CharacterConfig.AirWalk and workspace or nil
+                if CharacterConfig.AirWalk then AirPart.CFrame = CFrame.new(root.Position.X, root.Position.Y - 3.25, root.Position.Z) end
+                
+                if CharacterConfig.Noclip then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = (part.Name ~= "HumanoidRootPart" and part.Name ~= "UpperTorso" and part.Name ~= "Head") and root.AssemblyLinearVelocity.Y < -50
+                        end
+                    end
+                end
+            end
+
+            for p, cache in pairs(espCache) do
+                local pchar = p.Character
+                local hpart = pchar and pchar:FindFirstChild("HumanoidRootPart")
+                local phum = pchar and pchar:FindFirstChildOfClass("Humanoid")
+
+                if hpart and phum and phum.Health > 0 then
+                    local sPos, onScreen = camera:WorldToViewportPoint(hpart.Position)
+                    cache.Box.Adornee = CharacterConfig.EspBoxes and hpart or nil
+                    if CharacterConfig.EspBoxes then cache.Box.Size = pchar:GetExtentsSize() end
+
+                    if CharacterConfig.EspHealth and onScreen then
+                        local size = pchar:GetExtentsSize()
+                        local healthPct = math.clamp(phum.Health / phum.MaxHealth, 0, 1)
+                        cache.HealthBG.From = Vector2.new(sPos.X - size.X * 2, sPos.Y - size.Y * 2)
+                        cache.HealthBG.To = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2)
+                        cache.HealthBG.Visible = truecache.Health.From = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2)
+                        cache.Health.To = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2 - ((size.Y * 4) * healthPct))
+                        cache.Health.Visible = true
+                        if healthPct > 0.5 then cache.Health.Color = Color3.fromRGB(0, 255, 0)
+                        elseif healthPct > 0.25 then cache.Health.Color = Color3.fromRGB(255, 255, 0)
+                        else cache.Health.Color = Color3.fromRGB(255, 0, 0) end
+                    else
+                        cache.Health.Visible = false
+                        cache.HealthBG.Visible = false
+                    end
+
+                    if CharacterConfig.EspLines and onScreen then
+                        cache.Line.From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+                        cache.Line.To = Vector2.new(sPos.X, sPos.Y)
+                        cache.Line.Visible = true
+                    else
+                        cache.Line.Visible = false
+                    end
+                else
+                    cache.Box.Adornee = nil
+                    cache.Line.Visible = false
+                    cache.Health.Visible = false
+                    cache.HealthBG.Visible = false
+                end
+            end
+        end)
+    end
+end)
+   
