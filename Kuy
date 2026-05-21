@@ -19,7 +19,6 @@ if not parentSet then pcall(function() ScreenGui.Parent = localPlayer:WaitForChi
 if not parentSet then ScreenGui.Parent = localPlayer.PlayerGui end
 
 if not ScreenGui.Parent then error("Cannot create GUI") end
-
 -- ==================== UI CREATION ====================
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -87,13 +86,139 @@ UIPadding.PaddingLeft = UDim.new(0, 8)
 UIPadding.PaddingRight = UDim.new(0, 8)
 UIPadding.PaddingTop = UDim.new(0, 8)
 -- ==================== END UI CREATION ====================
-
 local CharacterConfig = {
     WalkSpeed = 16, JumpPower = 50, AirWalk = false, Noclip = false,
     EspLines = false, EspBoxes = false, EspHealth = false, DamageEvade = false,
     SpinSpeed = 0, FlyEnabled = false, FlySpeed = 60
 }
 local lastSafeCFrame, tpCooldown, dragging, hasMoved, isMinimized, dragStart, startPos = nil, false, false, false, false, nil, nil
+
+-- ลาก UI
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging, hasMoved, dragStart, startPos = true, false, input.Position, MainFrame.Position
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > 5 then hasMoved = true end
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+        if not hasMoved then
+            isMinimized = not isMinimized
+            MainFrame.Size = isMinimized and UDim2.new(0, 260, 0, 40) or UDim2.new(0, 260, 0, 450)
+            ContentFrame.Visible = not isMinimized
+        end
+    end
+end)
+
+-- ฟังก์ชันสร้าง Slider
+local function CreateSlider(name, labelText, defaultVal, minVal, maxVal, callback)
+    local Container = Instance.new("Frame")
+    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 42); Container.Parent = ContentFrame
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Size = UDim2.new(1, 0, 0, 20); Label.Font = Enum.Font.SourceSans
+    Label.Text = labelText .. ": " .. defaultVal; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local SliderBG = Instance.new("Frame")
+    SliderBG.Parent = Container; SliderBG.BackgroundColor3 = Color3.fromRGB(45, 45, 45); SliderBG.BorderSizePixel = 0; SliderBG.Position = UDim2.new(0, 0, 0, 24); SliderBG.Size = UDim2.new(1, 0, 0, 8)
+
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Parent = SliderBG; SliderFill.BackgroundColor3 = Color3.fromRGB(219, 0, 190); SliderFill.BorderSizePixel = 0
+    SliderFill.Size = UDim2.new(math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1), 0, 1, 0)
+
+    local SliderBtn = Instance.new("TextButton")
+    SliderBtn.Parent = SliderBG; SliderBtn.BackgroundTransparency = 1; SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.Text = ""
+
+    local isSliding = false
+    local function UpdateSlider(input)
+        local pct = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
+        SliderFill.Size = UDim2.new(pct, 0, 1, 0)
+        local val = math.round(minVal + (pct * (maxVal - minVal)))
+        Label.Text = labelText .. ": " .. val
+        callback(val)
+    end
+    SliderBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = true; UpdateSlider(input) end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then UpdateSlider(input) end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = false end
+    end)
+end
+
+-- ฟังก์ชันสร้าง Checkbox
+local function CreateCheckbox(name, labelText, callback)
+    local Container = Instance.new("Frame")
+    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 30); Container.Parent = ContentFrame
+
+    local Border = Instance.new("TextButton")
+    Border.Parent = Container; Border.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Border.BorderColor3 = Color3.fromRGB(219, 0, 190)
+    Border.BorderSizePixel = 1; Border.Position = UDim2.new(0, 2, 0.15, 0); Border.Size = UDim2.new(0, 18, 0, 18); Border.Text = ""; Border.AutoButtonColor = false
+
+    local Inner = Instance.new("Frame")
+    Inner.Parent = Border; Inner.BackgroundColor3 = Color3.fromRGB(219, 0, 190); Inner.BorderSizePixel = 0; Inner.Position = UDim2.new(0.2, 0, 0.2, 0); Inner.Size = UDim2.new(0.6, 0, 0.6, 0); Inner.Visible = false
+
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Position = UDim2.new(0, 32, 0, 0); Label.Size = UDim2.new(1, -32, 1, 0)
+    Label.Font = Enum.Font.SourceSans; Label.Text = labelText; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local state = false
+    Border.MouseButton1Click:Connect(function()
+        state = not state; Inner.Visible = state; callback(state)
+    end)
+end
+
+-- ฟังก์ชันสร้าง Header
+local function CreateHeader(title)
+    local Container = Instance.new("Frame")
+    Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 25); Container.Parent = ContentFrame
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Parent = Container; TitleLabel.BackgroundTransparency = 1; TitleLabel.Size = UDim2.new(1, 0, 1, 0)
+    TitleLabel.Font = Enum.Font.SourceSansBold; TitleLabel.Text = title; TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 14; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+end
+CreateHeader("MOVEMENT")
+CreateSlider("SpeedHack", "Speed Hack", 16, 16, 1000, function(v) CharacterConfig.WalkSpeed = v end)
+CreateSlider("JumpHack", "Jump Power", 50, 50, 300, function(v) CharacterConfig.JumpPower = v end)
+CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 720, function(v) CharacterConfig.SpinSpeed = v end)
+
+local Spacer1 = Instance.new("Frame"); Spacer1.BackgroundTransparency = 1; Spacer1.Size = UDim2.new(1, 0, 0, 4); Spacer1.Parent = ContentFrame
+
+CreateHeader("FLY")
+CreateCheckbox("FlyEnabled", "Fly (กด W พุ่งตามกล้อง)", function(state)
+    CharacterConfig.FlyEnabled = state
+    local char = localPlayer.Character
+    if state and char then
+        StartFly(char, CharacterConfig.FlySpeed)
+    elseif not state then
+        StopFly(char)
+    end
+end)
+CreateSlider("FlySpeed", "Fly Speed", 60, 10, 500, function(v)
+    CharacterConfig.FlySpeed = v
+end)
+
+local Spacer2 = Instance.new("Frame"); Spacer2.BackgroundTransparency = 1; Spacer2.Size = UDim2.new(1, 0, 0, 4); Spacer2.Parent = ContentFrame
+
+CreateHeader("EVADE AND SAFETY")
+local toggles1 = {{"AirWalk", "Air Walk"}, {"Noclip", "Noclip"}, {"DamageEvade", "Damage Evade"}}
+for _, t in ipairs(toggles1) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
+
+local Spacer3 = Instance.new("Frame"); Spacer3.BackgroundTransparency = 1; Spacer3.Size = UDim2.new(1, 0, 0, 4); Spacer3.Parent = ContentFrame
+
+CreateHeader("ESP VISUALS")
+local toggles2 = {{"EspLines", "ESP Lines"}, {"EspBoxes", "ESP Boxes"}, {"EspHealth", "ESP Health"}}
+for _, t in ipairs(toggles2) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
 
 -- Fly objects
 local bv, bg = nil, nil
@@ -151,131 +276,6 @@ local function StopFly(char)
         if hum then hum.PlatformStand = false end
     end
 end
-
-TitleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging, hasMoved, dragStart, startPos = true, false, input.Position, MainFrame.Position
-    end
-end)
-UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        if delta.Magnitude > 5 then hasMoved = true end
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-TitleBar.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-        if not hasMoved then
-            isMinimized = not isMinimized
-            MainFrame.Size = isMinimized and UDim2.new(0, 260, 0, 40) or UDim2.new(0, 260, 0, 450)
-            ContentFrame.Visible = not isMinimized
-        end
-    end
-end)
-
-local function CreateSlider(name, labelText, defaultVal, minVal, maxVal, callback)
-    local Container = Instance.new("Frame")
-    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 42); Container.Parent = ContentFrame
-    
-    local Label = Instance.new("TextLabel")
-    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Size = UDim2.new(1, 0, 0, 20); Label.Font = Enum.Font.SourceSans
-    Label.Text = labelText .. ": " .. defaultVal; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local SliderBG = Instance.new("Frame")
-    SliderBG.Parent = Container; SliderBG.BackgroundColor3 = Color3.fromRGB(45, 45, 45); SliderBG.BorderSizePixel = 0; SliderBG.Position = UDim2.new(0, 0, 0, 24); SliderBG.Size = UDim2.new(1, 0, 0, 8)
-
-    local SliderFill = Instance.new("Frame")
-    SliderFill.Parent = SliderBG; SliderFill.BackgroundColor3 = Color3.fromRGB(219, 0, 190); SliderFill.BorderSizePixel = 0
-    SliderFill.Size = UDim2.new(math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1), 0, 1, 0)
-
-    local SliderBtn = Instance.new("TextButton")
-    SliderBtn.Parent = SliderBG; SliderBtn.BackgroundTransparency = 1; SliderBtn.Size = UDim2.new(1, 0, 1, 0); SliderBtn.Text = ""
-
-    local isSliding = false
-    local function UpdateSlider(input)
-        local pct = math.clamp((input.Position.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X, 0, 1)
-        SliderFill.Size = UDim2.new(pct, 0, 1, 0)
-        local val = math.round(minVal + (pct * (maxVal - minVal)))
-        Label.Text = labelText .. ": " .. val
-        callback(val)
-    end
-    SliderBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = true; UpdateSlider(input) end
-    end)
-    UIS.InputChanged:Connect(function(input)
-        if isSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then UpdateSlider(input) end
-    end)
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isSliding = false end
-    end)
-end
-
-local function CreateCheckbox(name, labelText, callback)
-    local Container = Instance.new("Frame")
-    Container.Name = name.."_Container"; Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 30); Container.Parent = ContentFrame
-
-    local Border = Instance.new("TextButton")
-    Border.Parent = Container; Border.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Border.BorderColor3 = Color3.fromRGB(219, 0, 190)
-    Border.BorderSizePixel = 1; Border.Position = UDim2.new(0, 2, 0.15, 0); Border.Size = UDim2.new(0, 18, 0, 18); Border.Text = ""; Border.AutoButtonColor = false
-
-    local Inner = Instance.new("Frame")
-    Inner.Parent = Border; Inner.BackgroundColor3 = Color3.fromRGB(219, 0, 190); Inner.BorderSizePixel = 0; Inner.Position = UDim2.new(0.2, 0, 0.2, 0); Inner.Size = UDim2.new(0.6, 0, 0.6, 0); Inner.Visible = false
-
-    local Label = Instance.new("TextLabel")
-    Label.Parent = Container; Label.BackgroundTransparency = 1; Label.Position = UDim2.new(0, 32, 0, 0); Label.Size = UDim2.new(1, -32, 1, 0)
-    Label.Font = Enum.Font.SourceSans; Label.Text = labelText; Label.TextColor3 = Color3.fromRGB(235, 235, 235); Label.TextSize = 15; Label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local state = false
-    Border.MouseButton1Click:Connect(function()
-        state = not state; Inner.Visible = state; callback(state)
-    end)
-end
-
-local function CreateHeader(title)
-    local Container = Instance.new("Frame")
-    Container.BackgroundTransparency = 1; Container.Size = UDim2.new(1, 0, 0, 25); Container.Parent = ContentFrame
-    
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Parent = Container; TitleLabel.BackgroundTransparency = 1; TitleLabel.Size = UDim2.new(1, 0, 1, 0)
-    TitleLabel.Font = Enum.Font.SourceSansBold; TitleLabel.Text = title; TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleLabel.TextSize = 14; TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-end
-
-CreateHeader("MOVEMENT")
-CreateSlider("SpeedHack", "Speed Hack", 16, 16, 1000, function(v) CharacterConfig.WalkSpeed = v end)
-CreateSlider("JumpHack", "Jump Power", 50, 50, 300, function(v) CharacterConfig.JumpPower = v end)
-CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 720, function(v) CharacterConfig.SpinSpeed = v end)
-
-local Spacer1 = Instance.new("Frame"); Spacer1.BackgroundTransparency = 1; Spacer1.Size = UDim2.new(1, 0, 0, 4); Spacer1.Parent = ContentFrame
-
-CreateHeader("FLY")
-CreateCheckbox("FlyEnabled", "Fly (กด W พุ่งตามกล้อง)", function(state)
-    CharacterConfig.FlyEnabled = state
-    local char = localPlayer.Character
-    if state and char then
-        StartFly(char, CharacterConfig.FlySpeed)
-    elseif not state then
-        StopFly(char)
-    end
-end)
-CreateSlider("FlySpeed", "Fly Speed", 60, 10, 500, function(v)
-    CharacterConfig.FlySpeed = v
-end)
-
-local Spacer2 = Instance.new("Frame"); Spacer2.BackgroundTransparency = 1; Spacer2.Size = UDim2.new(1, 0, 0, 4); Spacer2.Parent = ContentFrame
-
-CreateHeader("EVADE AND SAFETY")
-local toggles1 = {{"AirWalk", "Air Walk"}, {"Noclip", "Noclip"}, {"DamageEvade", "Damage Evade"}}
-for _, t in ipairs(toggles1) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
-
-local Spacer3 = Instance.new("Frame"); Spacer3.BackgroundTransparency = 1; Spacer3.Size = UDim2.new(1, 0, 0, 4); Spacer3.Parent = ContentFrame
-
-CreateHeader("ESP VISUALS")
-local toggles2 = {{"EspLines", "ESP Lines"}, {"EspBoxes", "ESP Boxes"}, {"EspHealth", "ESP Health"}}
-for _, t in ipairs(toggles2) do CreateCheckbox(t[1], t[2], function(state) CharacterConfig[t[1]] = state end) end
-
 local AirPart = Instance.new("Part")
 AirPart.Name = "NONNOIAirPlate"; AirPart.Size = Vector3.new(6, 0.5, 6); AirPart.Anchored = true; AirPart.Transparency = 1; AirPart.RootPriority = 1
 
@@ -337,7 +337,7 @@ local function PredictAndEvade(root, hum)
     end
     
     local parts = workspace:GetPartsInPart(AirPart)
-    for _, part in ipairs(parts) do
+    for _, part in iparts(parts) do
         if IsTouchDamagePart(part) then SafeTeleport(root) return end
     end
     
@@ -345,7 +345,6 @@ local function PredictAndEvade(root, hum)
         lastSafeCFrame = root.CFrame
     end
 end
-
 local function CreateEspCache(p)
     local box = Instance.new("BoxHandleAdornment")
     box.Name = "NONNOIBox"; box.AlwaysOnTop = true; box.ZIndex = 5; box.Color3 = Color3.fromRGB(219, 0, 190); box.Transparency = 0.5; box.Parent = ScreenGui
@@ -360,7 +359,6 @@ local function CleanESP(p) if espCache[p] then espCache[p].Box:Destroy(); espCac
 for _, p in ipairs(players:GetPlayers()) do if p ~= localPlayer then espCache[p] = CreateEspCache(p) end end
 players.PlayerAdded:Connect(function(p) if p ~= localPlayer then espCache[p] = CreateEspCache(p) end end)
 players.PlayerRemoving:Connect(CleanESP)
-
 local function ApplyCharacterBypasses(char)
     local hum = char:WaitForChild("Humanoid", 5)
     local root = char:WaitForChild("HumanoidRootPart", 5)
@@ -396,7 +394,6 @@ end)
 if localPlayer.Character then
     ApplyCharacterBypasses(localPlayer.Character)
 end
-
 task.spawn(function()
     while task.wait(0.01) do
         pcall(function()
@@ -441,7 +438,8 @@ task.spawn(function()
                         local healthPct = math.clamp(phum.Health / phum.MaxHealth, 0, 1)
                         cache.HealthBG.From = Vector2.new(sPos.X - size.X * 2, sPos.Y - size.Y * 2)
                         cache.HealthBG.To = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2)
-                        cache.HealthBG.Visible = truecache.Health.From = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2)
+                        cache.HealthBG.Visible = true
+                        cache.Health.From = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2)
                         cache.Health.To = Vector2.new(sPos.X - size.X * 2, sPos.Y + size.Y * 2 - ((size.Y * 4) * healthPct))
                         cache.Health.Visible = true
                         if healthPct > 0.5 then cache.Health.Color = Color3.fromRGB(0, 255, 0)
@@ -469,4 +467,3 @@ task.spawn(function()
         end)
     end
 end)
-   
