@@ -236,36 +236,55 @@ local function StartFly(char, speed)
     hum.PlatformStand = true
     
     bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
     bv.Velocity = Vector3.zero
     bv.Parent = hrp
     
     bg = Instance.new("BodyGyro")
-    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bg.P = 9e4
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.P = 10000
     bg.CFrame = hrp.CFrame
     bg.Parent = hrp
     
     local conn
     conn = RS.RenderStepped:Connect(function()
-        if not CharacterConfig.FlyEnabled or not bv or not bg or not hrp.Parent then
+        if not CharacterConfig.FlyEnabled or not bv or not bg or not hrp.Parent or not hum.Parent then
             conn:Disconnect()
             CleanupFly()
             if hum and hum.Parent then hum.PlatformStand = false end
             return
         end
         
-        bg.CFrame = camera.CFrame
+        local moveDir = hum.MoveDirection
+        local cam = camera.CFrame
         
-        local move = hum.MoveDirection
-        local vel = Vector3.zero
+        local direction =
+            (cam.RightVector * moveDir.X) +
+            (-cam.LookVector * moveDir.Z)
         
-        if move.Magnitude > 0 then
-            vel = camera.CFrame.LookVector * speed
+        direction = Vector3.new(direction.X, 0, direction.Z)
+        
+        if hum.Jump then
+            direction += Vector3.new(0, 1, 0)
         end
         
-        bv.Velocity = vel
+        if direction.Magnitude > 0 then
+            bv.Velocity = direction.Unit * CharacterConfig.FlySpeed
+        else
+            bv.Velocity = Vector3.zero
+        end
+        
+        bg.CFrame = cam
     end)
+end
+
+local function StopFly(char)
+    CharacterConfig.FlyEnabled = false
+    CleanupFly()
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
 end
 
 local function StopFly(char)
