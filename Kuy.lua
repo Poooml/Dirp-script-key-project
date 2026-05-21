@@ -111,7 +111,18 @@ end
 CreateHeader("MOVEMENT")
 CreateSlider("SpeedHack", "Speed Hack", 16, 16, 200, function(v) CharacterConfig.WalkSpeed = v end)
 CreateSlider("JumpHack", "Jump Power", 50, 50, 300, function(v) CharacterConfig.JumpPower = v end)
-CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 5000, function(v) CharacterConfig.SpinSpeed = v end)
+CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 5000, function(v)
+    CharacterConfig.SpinSpeed = v
+end)
+    local deltaTime = tick() - lastTime
+    lastTime = tick()
+
+    local spinAngle = math.rad(CharacterConfig.SpinSpeed * deltaTime)
+
+    root.CFrame =
+        root.CFrame *
+        CFrame.Angles(0, spinAngle, 0)
+endSpeed = v end)
 CreateSlider("FlySpeed", "Fly Speed", 80, 20, 300, function(v) CharacterConfig.FlySpeed = v end)
 local Spacer1 = Instance.new("Frame"); Spacer1.BackgroundTransparency = 1; Spacer1.Size = UDim2.new(1, 0, 0, 4); Spacer1.Parent = ContentFrame
 CreateHeader("EVADE AND SAFETY")
@@ -205,39 +216,62 @@ local root = char and char:FindFirstChild("HumanoidRootPart")
 local hum = char and char:FindFirstChildOfClass("Humanoid")
 if root and hum then  
 ForceMovementValues(hum)
-if CharacterConfig.InfiniteWalk then  
-hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)  
-hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)  
-hum.PlatformStand = false  
-hum:ChangeState(Enum.HumanoidStateType.Running)
-end
-PredictAndEvade(root, hum)  
 if CharacterConfig.FlyEnabled then
 workspace.Gravity = 0
-if FlyVelocity.Parent ~= root then FlyVelocity.Parent = root end
-if FlyGyro.Parent ~= root then FlyGyro.Parent = root end
-local moveDir = hum.MoveDirection
-local camLook = camera.CFrame.LookVector
-if moveDir.Magnitude > 0 then
-FlyVelocity.Velocity = camLook * CharacterConfig.FlySpeed
-FlyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + camLook)
-else
-FlyVelocity.Velocity = Vector3.zero
+
+if FlyVelocity.Parent ~= root then
+    FlyVelocity.Parent = root
 end
+
+if FlyGyro.Parent ~= root then
+    FlyGyro.Parent = root
+end
+
+hum.AutoRotate = false
+UIS.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+local camCF = camera.CFrame
+local moveDir = hum.MoveDirection
+
+-- ใช้มุมกล้องจริงทั้งหมด รวมขึ้นลง
+local flyDir = camCF.LookVector
+
+-- หันตัวตามกล้อง
+root.CFrame = CFrame.lookAt(root.Position, root.Position + flyDir)
+
+if moveDir.Magnitude > 0 then
+    FlyVelocity.Velocity = flyDir * CharacterConfig.FlySpeed
+else
+    FlyVelocity.Velocity = Vector3.zero
+end
+
+FlyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + flyDir)
+
+if CharacterConfig.SpinSpeed > 0 then
+    root.CFrame =
+        root.CFrame *
+        CFrame.Angles(
+            0,
+            math.rad(CharacterConfig.SpinSpeed * 0.01),
+            0
+        )
+end
+
 hum.PlatformStand = false
 hum.Sit = false
+
 hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
 hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
 else
 workspace.Gravity = 196.2
+
 FlyVelocity.Parent = nil
 FlyGyro.Parent = nil
-end
-if CharacterConfig.SpinSpeed > 0 and root then  
-local deltaTime = tick() - lastTime
-lastTime = tick()
-root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(CharacterConfig.SpinSpeed * deltaTime), 0)
+
+hum.AutoRotate = true
+UIS.MouseBehavior = Enum.MouseBehavior.Default
 end
 AirPart.Parent = CharacterConfig.AirWalk and workspace or nil  
 if CharacterConfig.AirWalk and root then AirPart.CFrame = CFrame.new(root.Position.X, root.Position.Y - 3.25, root.Position.Z) end  
