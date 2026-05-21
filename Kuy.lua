@@ -114,15 +114,6 @@ CreateSlider("JumpHack", "Jump Power", 50, 50, 300, function(v) CharacterConfig.
 CreateSlider("Spinbot", "Spin Speed (deg/s)", 0, 0, 5000, function(v)
     CharacterConfig.SpinSpeed = v
 end)
-    local deltaTime = tick() - lastTime
-    lastTime = tick()
-
-    local spinAngle = math.rad(CharacterConfig.SpinSpeed * deltaTime)
-
-    root.CFrame =
-        root.CFrame *
-        CFrame.Angles(0, spinAngle, 0)
-endSpeed = v end)
 CreateSlider("FlySpeed", "Fly Speed", 80, 20, 300, function(v) CharacterConfig.FlySpeed = v end)
 local Spacer1 = Instance.new("Frame"); Spacer1.BackgroundTransparency = 1; Spacer1.Size = UDim2.new(1, 0, 0, 4); Spacer1.Parent = ContentFrame
 CreateHeader("EVADE AND SAFETY")
@@ -216,6 +207,15 @@ local root = char and char:FindFirstChild("HumanoidRootPart")
 local hum = char and char:FindFirstChildOfClass("Humanoid")
 if root and hum then  
 ForceMovementValues(hum)
+if CharacterConfig.SpinSpeed > 0 then
+    root.CFrame =
+        root.CFrame *
+        CFrame.Angles(
+            0,
+            math.rad(CharacterConfig.SpinSpeed * 0.01),
+            0
+        )
+end
 if CharacterConfig.FlyEnabled then
 workspace.Gravity = 0
 
@@ -246,16 +246,6 @@ else
 end
 
 FlyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + flyDir)
-
-if CharacterConfig.SpinSpeed > 0 then
-    root.CFrame =
-        root.CFrame *
-        CFrame.Angles(
-            0,
-            math.rad(CharacterConfig.SpinSpeed * 0.01),
-            0
-        )
-end
 
 hum.PlatformStand = false
 hum.Sit = false
