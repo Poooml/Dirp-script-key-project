@@ -1,3 +1,4 @@
+-- NONNOI CLIENT - PREDICTIVE RAYCAST DAMAGE EVADE & MOVEMENT MOBILE UI
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 task.wait(1)
 
@@ -491,38 +492,86 @@ AirPart.Parent = CharacterConfig.AirWalk and workspace or nil
                 cache.Box.Adornee = CharacterConfig.EspBoxes and hpart or nil  
                 if CharacterConfig.EspBoxes then cache.Box.Size = pchar:GetExtentsSize() end  
 
-                if CharacterConfig.EspHealth and onScreen then  
-                    local size = pchar:GetExtentsSize()  
-                    local topPos, topOn = camera:WorldToViewportPoint((hpart.CFrame * CFrame.new(0, size.Y/2, 0)).Position)  
-                    local botPos, botOn = camera:WorldToViewportPoint((hpart.CFrame * CFramenew(0, -size.Y/2, 0)).Position)  
-                      
-                    if topOn and botOn then  
-                        local bH = math.abs(topPos.Y - botPos.Y)  
-                        local lineX = sPos.X - 14  
-                        cache.HealthBG.From, cache.HealthBG.To, cache.HealthBG.Visible = Vector2.new(lineX, botPos.Y), Vector2.new(lineX, topPos.Y), true  
-                          
-                        local hpPct = math.clamp(phum.Health / phum.MaxHealth, 0, 1)  
-                        cache.Health.From, cache.Health.To = Vector2.new(lineX, botPos.Y), Vector2.new(lineX, botPos.Y - (bH * hpPct))  
-                        if hpPct > 0.5 then cache.Health.Color = Color3.fromRGB(0, 255, 0)  
-                        elseif hpPct > 0.25 then cache.Health.Color = Color3.fromRGB(255, 255, 0)  
-                        else cache.Health.Color = Color3.fromRGB(255, 0, 0) end  
-                        cache.Health.Visible = true  
-                    else cache.HealthBG.Visible, cache.Health.Visible = false, false end  
-                else cache.HealthBG.Visible, cache.Health.Visible = false, false end  
+               if CharacterConfig.EspHealth and onScreen then
+    local size = pchar:GetExtentsSize()
 
-                if CharacterConfig.EspLines and onScreen then  
-                    local originPos = Vector2.new(
-    camera.ViewportSize.X * CharacterConfig.EspOriginX,
-    camera.ViewportSize.Y * CharacterConfig.EspOriginY
-)
+    local topPos, topOn =
+        camera:WorldToViewportPoint(
+            (hpart.CFrame * CFrame.new(0,size.Y/2,0)).Position
+        )
 
-cache.Line.From = originPos
-cache.Line.To = Vector2.new(sPos.X, sPos.Y)
-cache.Line.Visible = true 
-                else cache.Line.Visible = false end  
-            else  
-                cache.Box.Adornee, cache.Line.Visible, cache.HealthBG.Visible, cache.Health.Visible = nil, false, false, false  
-            end  
+    local botPos, botOn =
+   camera:WorldToViewportPoint(
+            (hpart.CFrame * CFrame.new(0,-size.Y/2,0)).Position
+        )
+
+    if topOn and botOn then
+        local bH =
+            math.abs(topPos.Y - botPos.Y)
+
+        local lineX = sPos.X - 14
+
+        cache.HealthBG.From =
+            Vector2.new(lineX, botPos.Y)
+
+        cache.HealthBG.To =
+            Vector2.new(lineX, topPos.Y)
+
+        cache.HealthBG.Visible = true
+
+        local hpPct =
+            math.clamp(
+                phum.Health / phum.MaxHealth,
+                0,
+                1
+            )
+
+        cache.Health.From =
+            Vector2.new(lineX, botPos.Y)
+
+        cache.Health.To =
+            Vector2.new(
+                lineX,
+                botPos.Y - (bH * hpPct)
+            )
+
+        if hpPct > 0.5 then
+            cache.Health.Color =
+                Color3.fromRGB(0,255,0)
+
+        elseif hpPct > 0.25 then
+            cache.Health.Color =
+                Color3.fromRGB(255,255,0)
+
+        else
+            cache.Health.Color =
+                Color3.fromRGB(255,0,0)
+        end
+
+        cache.Health.Visible = true
+    else
+        cache.HealthBG.Visible = false
+        cache.Health.Visible = false
+    end
+else
+    cache.HealthBG.Visible = false
+    cache.Health.Visible = false
+end
+
+if CharacterConfig.EspLines and onScreen then
+    local originPos =
+        Vector2.new(
+            camera.ViewportSize.X * CharacterConfig.EspOriginX,
+            camera.ViewportSize.Y * CharacterConfig.EspOriginY
+        )
+
+    cache.Line.From = originPos
+    cache.Line.To = Vector2.new(sPos.X,sPos.Y)
+
+    cache.Line.Visible = true
+else
+    cache.Line.Visible = false
+end
         end  
     end)  
 end
