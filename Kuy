@@ -1,4 +1,3 @@
-```lua
 -- NONNOI CLIENT - PREDICTIVE RAYCAST DAMAGE EVADE & MOVEMENT MOBILE UI (FIXED)
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 task.wait(1)
@@ -306,4 +305,3 @@ end
 end)
 end
 end)
-```
