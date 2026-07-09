@@ -1,4 +1,4 @@
--- NONNOI CLIENT - PREDICTIVE RAYCAST DAMAGE EVADE & MOVEMENT MOBILE UI (FIXED)
+--NONNOI CLIENT - PREDICTIVE RAYCAST DAMAGE EVADE & MOVEMENT MOBILE UI (FIXED)
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
 task.wait(1)
 local ScreenGui, players, UIS = Instance.new("ScreenGui"), game:GetService("Players"), game:GetService("UserInputService")
